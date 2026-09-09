@@ -17,7 +17,7 @@ class AudioRecorder: ObservableObject {
     ///   .infinity → mic stays on for the session after your first dictation (default)
     ///   180       → stays warm 3 min, then releases; a dictation after that clips again
     ///   0         → mic only on while recording; pre-roll disabled, old behaviour
-    private let warmIdleSeconds: TimeInterval = .infinity
+    private let warmIdleSeconds: TimeInterval = 0
 
     // Whisper requires 16kHz mono
     private let targetFormat = AVAudioFormat(

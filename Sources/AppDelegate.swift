@@ -69,7 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         }
 
         if ProcessInfo.processInfo.environment["WHISPER_SELFCHECK"] != nil {
-            AudioRecorder.selfCheck(); exit(0)
+            AudioRecorder.selfCheck(); DictationController.selfCheckAnnotations(); exit(0)
         }
         if AudioRecorder.recordTestRequested {
             controller.recorder.runRecordTest { exit(0) }

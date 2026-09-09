@@ -20,6 +20,11 @@ class CloudTranscriptionService {
     }
 
     func transcribe(fileURL: URL, language: String, completion: @escaping (String?) -> Void) {
+        send(fileURL: fileURL, language: language, retriesLeft: 1, completion: completion)
+    }
+
+    private func send(fileURL: URL, language: String, retriesLeft: Int,
+                      completion: @escaping (String?) -> Void) {
         let p = provider
         guard let key = STTSettings.key(for: p) else {
             print("❌ No key found for \(p.name) (configure in Settings or set env \(p.envKey))")
@@ -87,6 +92,15 @@ class CloudTranscriptionService {
 
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, error in
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            // A dropped connection or a rate limit is worth one more try; a 4xx is not —
+            // the request itself is wrong and resending only burns another second.
+            let transient = error != nil || code == 429 || (500...599).contains(code)
+            if transient, retriesLeft > 0 {
+                DebugLog.log("↻ retrying after \(error.map { "network: \($0.localizedDescription)" } ?? "HTTP \(code)")")
+                self?.send(fileURL: fileURL, language: language, retriesLeft: retriesLeft - 1,
+                           completion: completion)
+                return
+            }
             if let error = error {
                 self?.lastFailure = "network: \(error.localizedDescription)"
                 DebugLog.log("❌ \(p.name) network error: \(error.localizedDescription)")

@@ -20,7 +20,9 @@ class DictationController: ObservableObject {
     @Published var status = ""
     @Published var stage: Stage = .idle
     @Published var useCloudSTT = true
-    @Published var useCorrection = true
+    /// Off by default: it adds ~2 s on a long dictation, and the models available for it
+    /// rewrite phrasing rather than just fixing words. Toggle it in the menu bar.
+    @Published var useCorrection = false
     @Published var language = "th"
 
     let recorder = AudioRecorder()
@@ -130,29 +132,47 @@ class DictationController: ObservableObject {
         }
     }
 
-    /// ลบคำบรรยายเสียง/เหตุการณ์ที่ STT ใส่มา เช่น (เสียงลม) (wind noise) [applause] *laughs*
-    /// แบบที่ ElevenLabs Scribe และ Whisper มักแทรกเข้ามา
+    /// Sound/event tags the STT inserts — (เสียงลม) [applause] *laughs*.
+    /// Only removes a bracketed group whose contents actually read as one of those: the old
+    /// version stripped every bracket, so dictating "(สำคัญ)" silently lost the word.
+    private static let annotationWord = try! NSRegularExpression(
+        pattern: "เสียง|ดนตรี|หัวเราะ|ไอ|จาม|เงียบ|ปรบมือ|laugh|applaus|music|noise|silen|blank|"
+               + "inaudible|cough|sigh|sneez|wind|typing|breath|throat|static|beep|crosstalk",
+        options: [.caseInsensitive])
+
     private func stripSoundAnnotations(_ text: String) -> String {
         var result = text
         let patterns = [
-            "\\([^\\)]*\\)",   // ( ... )   ASCII
-            "（[^）]*）",         // （ ... ） fullwidth
-            "\\[[^\\]]*\\]",   // [ ... ]
-            "【[^】]*】",         // 【 ... 】
-            "\\*[^*]*\\*",      // * ... *
-            "‹[^›]*›",           // ‹ ... ›
-            "«[^»]*»",          // « ... »
+            "\\(([^\\)]*)\\)",   // ( ... )   ASCII
+            "（([^）]*)）",              // （ ... ） fullwidth
+            "\\[([^\\]]*)\\]",   // [ ... ]
+            "【([^】]*)】",              // 【 ... 】
+            "\\*([^*]*)\\*",        // * ... *
+            "‹([^›]*)›",
+            "«([^»]*)»",
         ]
         for p in patterns {
-            result = result.replacingOccurrences(of: p, with: " ", options: .regularExpression)
+            guard let re = try? NSRegularExpression(pattern: p) else { continue }
+            var out = ""
+            var last = result.startIndex
+            for m in re.matches(in: result, range: NSRange(result.startIndex..., in: result)) {
+                guard let whole = Range(m.range, in: result),
+                      let inner = Range(m.range(at: 1), in: result) else { continue }
+                let content = String(result[inner])
+                let isAnnotation = Self.annotationWord.firstMatch(
+                    in: content, range: NSRange(content.startIndex..., in: content)) != nil
+                out += result[last..<whole.lowerBound]
+                if !isAnnotation { out += result[whole] }   // real speech — keep it
+                else { out += " " }
+                last = whole.upperBound
+            }
+            out += result[last...]
+            result = out
         }
-        // กรณีคำบรรยายไม่มีวงเล็บปิด (เช่น "(เสียงลม" ค้าง) ลบคำที่ขึ้นต้นด้วย "เสียง" ที่ค้าง
-        // ยุบช่องว่างซ้อน และตัดปีกกะไร
-        result = result
+        return result
             .replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s+([,.!?])", with: "$1", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return result
     }
 }
 
@@ -188,5 +208,28 @@ enum Paster {
         didPrompt = true
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    }
+}
+
+// MARK: - Self-check
+// WHISPER_SELFCHECK=1 Whisper.app/Contents/MacOS/WhisperApp
+extension DictationController {
+    static func selfCheckAnnotations() {
+        let c = DictationController()
+        func eq(_ input: String, _ want: String, _ note: String) {
+            let got = c.stripSoundAnnotations(input)
+            assert(got == want, "\(note): \(input) → '\(got)', wanted '\(want)'")
+        }
+        // Removed: the STT's own sound tags.
+        eq("(เสียงลม) สวัสดีครับ", "สวัสดีครับ", "thai sound tag")
+        eq("[applause] hello there", "hello there", "bracket tag")
+        eq("*laughs* okay", "okay", "asterisk tag")
+        eq("test [BLANK_AUDIO] done", "test done", "blank audio")
+        // Kept: bracketed words the user actually dictated. The old strip-everything
+        // version failed all three of these by silently deleting the content.
+        eq("ราคา (สำคัญ) มาก", "ราคา (สำคัญ) มาก", "real parenthetical")
+        eq("ดูข้อ [3] ด้วย", "ดูข้อ [3] ด้วย", "real bracket")
+        eq("ค่า (x + y) เท่าไหร่", "ค่า (x + y) เท่าไหร่", "real formula")
+        print("✅ stripSoundAnnotations self-check passed (4 tags removed, 3 real parentheticals kept)")
     }
 }
