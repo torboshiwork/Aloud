@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 import Combine
 import AVFoundation
-import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     let controller = DictationController()
@@ -10,7 +9,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     private var statusItem: NSStatusItem!
     private var panel: NSPanel!
     private var cancellables = Set<AnyCancellable>()
-    private var updaterController: SPUStandardUpdaterController!
 
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
@@ -80,9 +78,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             controller.recorder.warmUp()
         }
 
-        // Sparkle auto-updater (checks SUFeedURL on launch + daily)
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        // No Sparkle updater: this build installs itself over /Applications via make_app.sh,
+        // and SUFeedURL has nothing serving it. Starting the updater and showing a menu item
+        // only bought a dialog saying the check failed. The dependency and the embedded
+        // framework are still here — restore this and the menu item together when there is a
+        // signed release and an appcast to point at.
     }
 
     // MARK: - Status bar
@@ -128,11 +128,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         settings.target = self
         settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         menu.addItem(settings)
-
-        let updates = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-        updates.target = self
-        updates.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
-        menu.addItem(updates)
 
         let whatsNew = NSMenuItem(title: "What's New…", action: #selector(openChangelog), keyEquivalent: "")
         whatsNew.target = self
@@ -180,12 +175,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         updateStates()
     }
 
-    @objc private func checkForUpdates() {
-        updaterController?.updater.checkForUpdates()
-    }
-
     @objc private func openChangelog() {
-        if let url = URL(string: "https://torboshiwork.github.io/Aloud/changelog") {
+        if let url = URL(string: "https://github.com/torboshiwork/Aloud/commits/main") {
             NSWorkspace.shared.open(url)
         }
     }

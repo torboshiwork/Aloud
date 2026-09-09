@@ -12,7 +12,7 @@ struct AboutView: View {
            let img = NSImage(contentsOfFile: path) {
             return Image(nsImage: img)
         }
-        if let path = Bundle.main.path(forResource: "Icon", ofType: "icns"),
+        if let path = Bundle.main.path(forResource: "Aloud", ofType: "icns"),
            let img = NSImage(contentsOfFile: path) {
             return Image(nsImage: img)
         }
@@ -25,7 +25,7 @@ struct AboutView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 110, height: 110)
-                .shadow(color: Color(red: 0.8, green: 0.44, blue: 0.3).opacity(0.35), radius: 14, y: 6)
+                .shadow(color: Color(red: 0.2, green: 0.5, blue: 0.95).opacity(0.4), radius: 14, y: 6)
 
             Text("Aloud")
                 .font(.title2).bold()
@@ -44,21 +44,31 @@ struct AboutView: View {
                 Text("Created by")
                     .font(.caption2)
                     .foregroundColor(.secondary)
-                Text("Gamezxz 🧙‍♂️")
+                Text("torboshi")
                     .font(.headline)
-                Text("Developer · Bitcoiner · Bangkok")
+                Text("Developer · Photographer · Bangkok")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
 
             HStack(spacing: 14) {
-                Link("cointh.com", destination: URL(string: "https://cointh.com")!)
+                Link("Instagram", destination: URL(string: "https://www.instagram.com/torboshi")!)
                 Link("GitHub", destination: URL(string: "https://github.com/torboshiwork/Aloud")!)
-                Link("Website", destination: URL(string: "https://torboshiwork.github.io/Aloud/")!)
             }
             .font(.callout)
 
-            Text("© 2026 Gamezxz — free & open source")
+            // The upstream project this is built on. Keep the credit and the link — the
+            // original carries no licence, so attribution is the least this owes it.
+            VStack(spacing: 2) {
+                Text("Built on")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Link("WhisperApp by Gamezxz",
+                     destination: URL(string: "https://github.com/Gamezxz/WhisperApp")!)
+                    .font(.caption)
+            }
+
+            Text("© 2026 torboshi — free & open source")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
