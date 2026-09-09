@@ -7,7 +7,7 @@ macOS menu-bar dictation app (Swift) — กด Fn ค้างแล้วพ�
 - **ชื่อแอป:** "Whisper" — bundle = `Whisper.app` (ใน /Applications ขึ้น "Whisper") ตั้งแต่ v1.2.3; executable ข้างในยังชื่อ `WhisperApp` (ตาม SPM target)
 - **อย่า rename:** repo/GitHub URL, SPM target (`WhisperApp`), หรือ bundle ID (`com.game.whisperapp`) — กระทบ git history, SPM build, TCC permissions. เปลี่ยนชื่อ bundle dir (`Whisper.app`) ได้เพราะ TCC bind กับ bundle ID + code signature ไม่ใช่ชื่อไฟล์
 - **Hotkey default:** Fn, hold-to-talk · toggle mode = เคาะ 2 ครั้งเริ่ม เคาะ 1 ครั้งหยุด (`HotkeyManager.swift`)
-- **Provider:** Groq เจ้าเดียว — key เดียวใช้ทั้ง STT (`whisper-large-v3-turbo`) + correction (`llama-3.3-70b-versatile`); Settings เหลือช่อง key ช่องเดียว
+- **Provider:** Groq เจ้าเดียว — key เดียวใช้ทั้ง STT (`whisper-large-v3`) + correction (`llama-3.3-70b-versatile`); Settings เหลือช่อง key ช่องเดียว
 - **Logo:** Claude-style cream/clay paper-cut mic — mask ด้วย superellipse (n=5) เขียนด้วย Python/PIL, อย่าใช้ขอบที่ AI gen มาตรงๆ (มันเบี้ยว)
 - **About window:** มีแล้ว (`AboutView.swift`) — เครดิต Gamezxz + ลิงก์
 

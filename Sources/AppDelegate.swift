@@ -22,6 +22,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     private var langMenu: NSMenu!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if ProcessInfo.processInfo.environment["WHISPER_SELFCHECK"] != nil {
+            AudioRecorder.selfCheck(); exit(0)
+        }
         AVCaptureDevice.requestAccess(for: .audio) { _ in }
         KeyStore.prewarm()
         setupStatusItem()
