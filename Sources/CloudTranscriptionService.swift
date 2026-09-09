@@ -92,8 +92,14 @@ class CloudTranscriptionService {
                 DebugLog.log("❌ \(p.name) network error: \(error.localizedDescription)")
                 completion(nil); return
             }
-            let bodyText = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-            DebugLog.log("☁️ HTTP \(code) · \(data?.count ?? 0)B · \(bodyText.prefix(300))")
+            // Never log the transcript itself — that is the user's speech sitting in a
+            // plaintext file. Only failures print a body, and those carry an API error.
+            if code == 200 {
+                DebugLog.log("☁️ HTTP 200 · \(data?.count ?? 0)B transcript")
+            } else {
+                let bodyText = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                DebugLog.log("☁️ HTTP \(code) · \(bodyText.prefix(300))")
+            }
             guard code == 200 else {
                 self?.lastFailure = "HTTP \(code)"
                 completion(nil); return
