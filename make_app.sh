@@ -29,19 +29,6 @@ if [ -f "assets/logo.png" ]; then
     cp "assets/logo.png" "$APP_BUNDLE/Contents/Resources/logo.png"
 fi
 
-# Embed Sparkle.framework (universal) for auto-update
-SPARKLE_FW=$(find .build/artifacts -type d -name "Sparkle.framework" -path "*macos-arm64_x86_64*" 2>/dev/null | head -1)
-if [ -n "$SPARKLE_FW" ]; then
-    mkdir -p "$APP_BUNDLE/Contents/Frameworks"
-    rm -rf "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-    cp -R "$SPARKLE_FW" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-    # executable must find @rpath/Sparkle.framework → add rpath to ../Frameworks
-    install_name_tool -add_rpath @loader_path/../Frameworks "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
-    echo "🪄 Embed Sparkle.framework"
-else
-    echo "⚠️  ไม่พบ Sparkle.framework — รัน 'swift build' ก่อน make_app.sh"
-fi
-
 # Code signing:
 # - ถ้ามี "Developer ID Application" → sign ด้วย cert นี้ (identity คงที่ สิทธิ์ TCC อยู่ข้าม rebuild)
 # - ไม่งั้น fallback ad-hoc (สิทธิ์จะหายทุกครั้งที่ rebuild)
@@ -59,10 +46,6 @@ if [ -n "$DEV_ID" ]; then
     # Sign nested Sparkle.framework ก่อน (ลำดับสำคัญ — nested ต้อง sign ก่อน bundle)
     # --deep เพราะ framework มี nested executables (Autoupdate, Updater.app, XPC services)
     # ที่ต้อง sign + hardened runtime + secure timestamp ทุกตัว ไม่งั้น notarization reject
-    if [ -d "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework" ]; then
-        codesign --force --deep --sign "$DEV_ID" --options runtime --timestamp \
-            "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-    fi
     echo "✍️  Code signing ด้วย Developer ID: $DEV_ID"
     codesign --force --options runtime --timestamp \
         --entitlements Aloud.entitlements \
