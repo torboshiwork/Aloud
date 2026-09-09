@@ -63,6 +63,9 @@ class DictationController: ObservableObject {
     func stop() {
         guard recorder.isRecording, !stopping else { return }
         stopping = true
+        // Logged here, at the key release, so the gap to the "⏹ stop" line is the tail itself.
+        // Without it the tail is invisible: both the release and the stop fold into one number.
+        DebugLog.log("⏸ key up · holding \(Int(tailSeconds * 1000))ms tail")
         isRecording = false
         status = "⏳ Processing…"
         stage = .transcribing

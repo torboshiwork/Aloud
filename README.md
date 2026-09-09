@@ -6,7 +6,7 @@ A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corre
 
 ![Aloud](assets/logo.png)
 
-> The app is named **Aloud** (v1.2+); the repo/bundle keeps the historical name `Aloud`.
+> Forked from [Gamezxz/WhisperApp](https://github.com/Gamezxz/WhisperApp) and rebranded to **Aloud** at v2.0.0.
 
 ## Features
 
@@ -16,7 +16,7 @@ A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corre
 - 📋 **Auto-paste** into the focused app (simulates ⌘V)
 - 🌊 Live waveform + status overlay (recording → transcribing → fixing → done)
 - 🔒 Key stored locally (`~/.aloud/` or `GROQ_API_KEY` in your shell), never bundled or shipped
-- ✅ Signed & **notarized** DMG
+- ⚠️ Signed with an Apple Development certificate, **not notarized** — the first launch on any other Mac needs System Settings › Privacy & Security › Open Anyway
 
 ## Requirements
 
@@ -55,7 +55,7 @@ export GROQ_API_KEY="gsk_..."
 git clone https://github.com/torboshiwork/Aloud
 cd Aloud
 ./run.sh             # dev loop: build + launch the app
-./make_dmg.sh        # build → sign → notarize → staple → .dmg
+./make_dmg.sh        # build → sign → .dmg (notarize+staple only with a Developer ID)
 ```
 
 Notarization in `make_dmg.sh` expects a keychain profile named `aloud-notary`
@@ -82,4 +82,11 @@ certificate — the build scripts auto-detect it.
 
 ## License
 
-MIT
+None yet — and that matters.
+
+The upstream project this is forked from, [Gamezxz/WhisperApp](https://github.com/Gamezxz/WhisperApp),
+ships no licence, so by default all rights are reserved to its author. This fork inherits that:
+you may read and fork it here, but nobody has been granted the right to redistribute it.
+The "MIT" that used to sit here was never backed by a LICENSE file in either repo.
+
+Ask upstream for a licence before publishing builds.
