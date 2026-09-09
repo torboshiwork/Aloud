@@ -19,12 +19,19 @@ DEV_ID=$(security find-identity -v -p codesigning "$KEYCHAIN" 2>/dev/null | grep
 # Notarize + staple the .app itself (ไม่ใช่แค่ DMG)
 # จำเป็นเพราะ: Sparkle แจก .zip ของ .app, และถ้า user แตก .app ออกจาก DMG,
 # Gatekeeper บนเครื่องอื่นเช็ค .app โดยตรง — ถ้าไม่มี notarization ticket → บล็อก
+# Notarization needs a paid Developer ID. Without one the DMG still builds and installs —
+# the receiving Mac just puts up a Gatekeeper block the first time, cleared once from
+# System Settings › Privacy & Security › Open Anyway. Skipping beats refusing to build.
 NOTARY_PROFILE="aloud-notary"
-if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-    echo "❌ ไม่มี credentials profile '$NOTARY_PROFILE' — สร้างก่อน:"
-    echo "   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <apple-id> --team-id DYJAX3728R"
-    exit 1
+NOTARIZE=1
+if [ -z "$DEV_ID" ] || ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+    NOTARIZE=0
+    echo "⚠️  ข้าม notarization — ไม่มี Developer ID / profile '$NOTARY_PROFILE'"
+    echo "   DMG ใช้ติดตั้งได้ แต่เครื่องปลายทางต้องกด Open Anyway ครั้งแรก"
+    echo "   จะให้ผ่านฉลุยต้องสมัคร Apple Developer Program (\$99/ปี) แล้วรัน:"
+    echo "   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <apple-id> --team-id 8ZJA9PYCVN"
 fi
+if [ "$NOTARIZE" = "1" ]; then
 echo "📤 Notarizing $APP_BUNDLE (อาจใช้เวลา 1-5 นาที)..."
 NOTARY_ZIP="/tmp/${APP_NAME}-notary.zip"
 ditto -c -k --keepParent "$APP_BUNDLE" "$NOTARY_ZIP"
@@ -36,11 +43,13 @@ fi
 rm -f "$NOTARY_ZIP"
 xcrun stapler staple "$APP_BUNDLE"
 echo "✅ $APP_BUNDLE notarized + stapled"
+fi
 
 echo "📦 เตรียม staging สำหรับ DMG..."
 STAGE=$(mktemp -d)
 cp -R "$APP_BUNDLE" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
+cp "อ่านก่อนเปิด.txt" "$STAGE/" 2>/dev/null || true
 
 # ใส่พื้นหลัง (ใช้ logo) ถ้ามี
 mkdir -p "$STAGE/.background"
@@ -53,9 +62,12 @@ echo "💽 สร้าง read-write DMG..."
 hdiutil create -srcfolder "$STAGE" -fs HFS+ -volname "$APP_NAME" -format UDRW "$RW_DMG" >/dev/null
 
 # mount เพื่อจัด layout หน้าต่าง
-MOUNT_DIR="/tmp/${APP_NAME}_mnt"
-rm -rf "$MOUNT_DIR"; mkdir -p "$MOUNT_DIR"
-hdiutil attach "$RW_DMG" -readwrite -nobrowse -mountpoint "$MOUNT_DIR" >/dev/null
+# Mount under /Volumes with the volume name Finder expects. The old -nobrowse mount into
+# /tmp meant AppleScript could not find a disk called "Aloud", so the drag-to-Applications
+# layout was skipped every time and the DMG opened as a bare file list.
+MOUNT_DIR="/Volumes/${APP_NAME}"
+hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
+hdiutil attach "$RW_DMG" -readwrite >/dev/null
 
 echo "🎨 จัด layout หน้าต่าง (optional)..."
 osascript <<APPLESCRIPT || echo "   (ข้าม layout — DMG ยังใช้ติดตั้งได้ปกติ)"
@@ -88,12 +100,7 @@ if [ -n "$DEV_ID" ]; then
 fi
 
 # Notarize + staple DMG (ทำให้เครื่องอื่นเปิดได้โดยไม่มีคำเตือนความปลอดภัย)
-NOTARY_PROFILE="aloud-notary"
-if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-    echo "❌ ไม่มี credentials profile '$NOTARY_PROFILE' — สร้างก่อน:"
-    echo "   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <apple-id> --team-id DYJAX3728R"
-    exit 1
-fi
+if [ "$NOTARIZE" = "1" ]; then
 echo "📤 Notarizing $DMG_NAME (อาจใช้เวลา 1-5 นาที)..."
 if ! xcrun notarytool submit "$DMG_NAME" --keychain-profile "$NOTARY_PROFILE" --wait; then
     echo "❌ Notarize DMG ล้มเหลว — หยุด (ถ้า error เป็น 'agreement is missing/expired' ให้ไป sign agreement ที่ appstoreconnect.apple.com)"
@@ -101,6 +108,7 @@ if ! xcrun notarytool submit "$DMG_NAME" --keychain-profile "$NOTARY_PROFILE" --
 fi
 xcrun stapler staple "$DMG_NAME"
 echo "✅ DMG notarized + stapled — เปิดบนเครื่องอื่นได้โดยไม่มีคำเตือน"
+fi
 
 echo ""
 echo "✅ เสร็จ: $DMG_NAME"
