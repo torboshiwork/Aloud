@@ -1,10 +1,24 @@
 import Foundation
+import AVFoundation
 
 /// Transcribe audio via cloud STT — supports multiple providers (ElevenLabs Scribe / OpenAI / Groq / Custom)
 /// via STTSettings — see STTProvider.swift
 class CloudTranscriptionService {
     /// Why the last transcribe returned nil — an API failure must not read as silence.
-    private(set) var lastFailure: String?
+    /// Set on a URLSession thread and read by the caller, so it goes through a lock rather
+    /// than being a bare `var` two threads happen not to touch at once today.
+    private let failureLock = NSLock()
+    private var _lastFailure: String?
+    private(set) var lastFailure: String? {
+        get { failureLock.lock(); defer { failureLock.unlock() }; return _lastFailure }
+        set { failureLock.lock(); _lastFailure = newValue; failureLock.unlock() }
+    }
+
+    /// Groq accepts 25 MB on the free tier; at 16 kHz mono Int16 (32 kB/s) that is ~13 min.
+    /// Stop below it rather than spending the upload to be told no.
+    private static let maxBytes = 24 * 1024 * 1024
+    /// Below this a take is a mis-press, and the API answers "audio_too_short" anyway.
+    private static let minSeconds = 0.3
 
     private var provider: STTProvider { STTSettings.current }
 
@@ -35,6 +49,19 @@ class CloudTranscriptionService {
             completion(nil); return
         }
         guard let fileData = try? Data(contentsOf: fileURL) else {
+            lastFailure = "could not read the recording"
+            completion(nil); return
+        }
+        let seconds = (try? AVAudioFile(forReading: fileURL))
+            .map { Double($0.length) / $0.fileFormat.sampleRate } ?? 0
+        guard seconds >= Self.minSeconds else {
+            lastFailure = String(format: "too short (%.2fs)", seconds)
+            DebugLog.log("⏭ skipped upload: \(String(format: "%.2f", seconds))s < \(Self.minSeconds)s")
+            completion(nil); return
+        }
+        guard fileData.count <= Self.maxBytes else {
+            lastFailure = "too long (\(Int(seconds / 60)) min — limit is about 13)"
+            DebugLog.log("⏭ skipped upload: \(fileData.count / 1024 / 1024)MB over the \(Self.maxBytes / 1024 / 1024)MB limit")
             completion(nil); return
         }
 

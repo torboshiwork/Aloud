@@ -42,6 +42,11 @@ final class CorrectionDictionary {
         lastMtime = mtime
 
         let raw = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        // Same 0600 as the key files: it holds the user's own vocabulary — client names,
+        // internal jargon — and had been left world-readable at 0644.
+        if !raw.isEmpty {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+        }
         rules = Self.parse(raw)
     }
 

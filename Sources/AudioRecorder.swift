@@ -330,18 +330,19 @@ extension AudioRecorder {
 
 
 // MARK: - Record self-test
-// Drop a marker file to make the app record 3 s at launch and log what landed on disk:
-//   touch ~/.whisperapp/RECORD_TEST && open Whisper.app
-// Verifies the whole capture path (engine → converter → tap → WAV) without a hotkey press.
+// Verifies the whole capture path (engine → converter → tap → WAV) without a hotkey press:
+//   open --env WHISPER_RECORD_TEST=1 Whisper.app
+// Deliberately an environment variable, not a marker file: a file in ~/.whisperapp could be
+// planted by anything with write access to the home directory, which would turn a diagnostic
+// into a way to make the app record audio on next launch.
 extension AudioRecorder {
     static var recordTestRequested: Bool {
-        FileManager.default.fileExists(atPath: KeyStore.dir + "/RECORD_TEST")
+        ProcessInfo.processInfo.environment["WHISPER_RECORD_TEST"] != nil
     }
 
     /// Instance method on purpose: driving a second AudioRecorder would open a second engine
     /// on the same device and the two reconfigure each other mid-take.
     func runRecordTest(seconds: Double = 3.0, then done: @escaping () -> Void) {
-        try? FileManager.default.removeItem(atPath: KeyStore.dir + "/RECORD_TEST")
         let r = self
         DebugLog.log("🧪 record test: warming up, then \(seconds)s")
         r.warmUp()                       // real usage warms at launch; let the device settle
@@ -356,10 +357,11 @@ extension AudioRecorder {
                     let want = Int(seconds * 1000)
                     let ok = ms > want * 3 / 4 && w.peak > 0.0005
                     DebugLog.log("🧪 \(ok ? "PASS" : "FAILED"): wanted ~\(want)ms, got \(ms)ms, peak \(String(format: "%.4f", w.peak))")
-                    DebugLog.log("🧪 wav kept at \(url.path)")
                 } else {
                     DebugLog.log("🧪 FAILED: no WAV produced")
                 }
+                // The diagnostic must not leave a recording of the room sitting in /tmp.
+                if let url = r.recordedFileURL { try? FileManager.default.removeItem(at: url) }
                 done()
             }
         }

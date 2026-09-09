@@ -72,7 +72,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             AudioRecorder.selfCheck(); DictationController.selfCheckAnnotations(); exit(0)
         }
         if AudioRecorder.recordTestRequested {
-            controller.recorder.runRecordTest { exit(0) }
+            // The value is the take length in seconds (0.2 exercises the too-short guard
+            // without needing a fast finger on the hotkey); anything unparseable means 3 s.
+            let secs = Double(ProcessInfo.processInfo.environment["WHISPER_RECORD_TEST"] ?? "") ?? 3.0
+            controller.recorder.runRecordTest(seconds: secs > 1 ? secs : max(secs, 0.05)) { exit(0) }
         } else {
             controller.recorder.warmUp()
         }
