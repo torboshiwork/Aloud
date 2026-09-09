@@ -17,7 +17,11 @@ class AudioRecorder: ObservableObject {
     ///   .infinity → mic stays on for the session after your first dictation (default)
     ///   180       → stays warm 3 min, then releases; a dictation after that clips again
     ///   0         → mic only on while recording; pre-roll disabled, old behaviour
-    private let warmIdleSeconds: TimeInterval = 0
+    // Cold-starting AVAudioEngine measured 372ms, paid on every keypress before the first
+    // sample lands — that is the missing first word. Staying warm for a minute covers a
+    // run of consecutive dictations and still releases the mic when the desk is empty.
+    // 0 = release immediately (no pre-roll)  ·  .infinity = never release
+    private let warmIdleSeconds: TimeInterval = 60
 
     // Whisper requires 16kHz mono
     private let targetFormat = AVAudioFormat(
@@ -57,6 +61,7 @@ class AudioRecorder: ObservableObject {
             stopEngine()
         }
 
+        let t0 = CFAbsoluteTimeGetCurrent()
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
         // Use actual hardware format (never guess — tap would get silent buffers otherwise)
@@ -106,7 +111,7 @@ class AudioRecorder: ObservableObject {
                 self.stopEngine()
                 self.startEngine()
             }
-            DebugLog.log("🎙️ engine started · hw in \(inputFormat.sampleRate)Hz \(inputFormat.channelCount)ch \(inputFormat.commonFormat.rawValue)")
+            DebugLog.log("🎙️ engine started in \(Int((CFAbsoluteTimeGetCurrent() - t0) * 1000))ms · hw in \(inputFormat.sampleRate)Hz \(inputFormat.channelCount)ch \(inputFormat.commonFormat.rawValue)")
             return true
         } catch {
             print("❌ Failed to start engine: \(error)")
@@ -129,7 +134,7 @@ class AudioRecorder: ObservableObject {
         converter = nil
         converterInputRate = 0
         lock.lock(); preRoll.removeAll(); lock.unlock()
-        print("🎙️ Mic released")
+        DebugLog.log("🎙️ mic released")
     }
 
     /// Start the mic now. Called at launch: the input device reconfigures itself the moment

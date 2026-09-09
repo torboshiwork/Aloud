@@ -55,12 +55,21 @@ class DictationController: ObservableObject {
         }
     }
 
+    /// The last syllable is still being spoken when the key comes up, so cutting the tap at
+    /// that instant clips it. Keep capturing briefly — the UI already says it stopped.
+    private let tailSeconds: TimeInterval = 0.3
+    private var stopping = false
+
     func stop() {
-        guard recorder.isRecording else { return }
-        recorder.stopRecording()
+        guard recorder.isRecording, !stopping else { return }
+        stopping = true
         isRecording = false
         status = "⏳ Processing…"
         stage = .transcribing
+        DispatchQueue.main.asyncAfter(deadline: .now() + tailSeconds) { [weak self] in
+            self?.recorder.stopRecording()
+            self?.stopping = false
+        }
     }
 
     private func handleAudio(_ url: URL) {
