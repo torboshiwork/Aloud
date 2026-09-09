@@ -95,4 +95,12 @@ final class CorrectionDictionary {
         guard !active.isEmpty else { return "" }
         return active.map { "- \($0.from) → \($0.to)" }.joined(separator: "\n")
     }
+
+    /// The correct spellings (the `to` side), deduped, in file order — sent to the STT so it
+    /// can produce these words in the first place. `apply(to:)` only repairs what the STT
+    /// already got close to; a word it never heard can't be pattern-matched back.
+    var sttBiasTerms: [String] {
+        var seen = Set<String>()
+        return snapshot().compactMap { seen.insert($0.to).inserted ? $0.to : nil }
+    }
 }

@@ -26,7 +26,7 @@ enum STTRegistry {
     static let all: [STTProvider] = [
         STTProvider(id: "elevenlabs", name: "ElevenLabs Scribe",
                     defaultEndpoint: "https://api.elevenlabs.io/v1/speech-to-text",
-                    defaultModel: "scribe_v1",
+                    defaultModel: "scribe_v2",
                     envKey: "ELEVENLABS_API_KEY", style: .elevenlabs),
         STTProvider(id: "openai", name: "OpenAI",
                     defaultEndpoint: "https://api.openai.com/v1/audio/transcriptions",
@@ -34,7 +34,7 @@ enum STTRegistry {
                     envKey: "OPENAI_API_KEY", style: .openAI),
         STTProvider(id: "groq", name: "Groq (Whisper)",
                     defaultEndpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
-                    defaultModel: "whisper-large-v3-turbo",
+                    defaultModel: "whisper-large-v3",
                     envKey: "GROQ_API_KEY", style: .openAI),
         STTProvider(id: "stt_custom", name: "Custom (OpenAI-compatible)",
                     defaultEndpoint: "",

@@ -60,6 +60,16 @@ class CloudTranscriptionService {
             field(langField, lang)
         }
 
+        // Bias the decoder toward the user's own vocabulary (proper nouns, brand names).
+        // Whisper's `prompt` caps at 224 tokens — 300 chars stays under that even for Thai,
+        // and a term clipped mid-word is harmless in what is only conditioning context.
+        // ponytail: openAI-style only. ElevenLabs has `keyterms` (up to 1000 terms) but its
+        // multipart serialization is undocumented — verify before sending, a 422 kills the call.
+        if p.style == .openAI {
+            let terms = CorrectionDictionary.shared.sttBiasTerms.joined(separator: ", ")
+            if !terms.isEmpty { field("prompt", String(terms.prefix(300))) }
+        }
+
         // Audio file
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n".data(using: .utf8)!)
