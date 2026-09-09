@@ -47,6 +47,14 @@ fi
 # - ไม่งั้น fallback ad-hoc (สิทธิ์จะหายทุกครั้งที่ rebuild)
 DEV_ID=$(security find-identity -v -p codesigning "$KEYCHAIN" 2>/dev/null | grep "Developer ID Application" | head -1 | sed -n 's/.*"\(.*\)".*/\1/p')
 
+# ไม่มี Developer ID → ใช้ "Apple Development" แทน แจกจ่ายไม่ได้/notarize ไม่ได้
+# แต่ identity คงที่ ⇒ สิทธิ์ TCC (ไมค์ + Accessibility) ไม่หลุดทุกครั้งที่ rebuild
+# ซึ่งลายเซ็น ad-hoc ทำให้หลุดทุกรอบ
+if [ -z "$DEV_ID" ]; then
+    DEV_ID=$(security find-identity -v -p codesigning "$KEYCHAIN" 2>/dev/null | grep "Apple Development" | head -1 | sed -n 's/.*"\(.*\)".*/\1/p')
+    [ -n "$DEV_ID" ] && echo "ℹ️  ไม่มี Developer ID — ใช้ Apple Development แทน (ใช้เองบนเครื่องนี้ได้ แจกไม่ได้)"
+fi
+
 if [ -n "$DEV_ID" ]; then
     # Sign nested Sparkle.framework ก่อน (ลำดับสำคัญ — nested ต้อง sign ก่อน bundle)
     # --deep เพราะ framework มี nested executables (Autoupdate, Updater.app, XPC services)
