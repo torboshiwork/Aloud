@@ -33,6 +33,13 @@ A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corre
 5. Click the mic icon → **Settings…** → paste your Groq API key
 6. Hold **Fn** and speak
 
+To start it at login, drop a LaunchAgent in `~/Library/LaunchAgents/com.game.whisperapp.plist`
+pointing `ProgramArguments` at `/Applications/Whisper.app/Contents/MacOS/WhisperApp`
+with `RunAtLoad` set, then `launchctl bootstrap gui/$(id -u) <that plist>`.
+
+Building from source: `./make_app.sh` builds, signs, and installs straight over
+`/Applications/Whisper.app`, so there is never a second copy at a different version.
+
 ## Configure the key
 
 The key is read from (in order): the Settings UI (saved to `~/.whisperapp/`) → shell env (`~/.zshrc`).

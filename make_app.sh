@@ -72,5 +72,13 @@ else
     codesign --force --deep --sign - "$APP_BUNDLE"
 fi
 
-echo "✅ เสร็จ: $APP_BUNDLE"
-echo "   เปิดด้วย: open $APP_BUNDLE"
+echo "✅ Build เสร็จ: $APP_BUNDLE"
+
+# ติดตั้งทับตัวใน /Applications เสมอ ไม่งั้นจะมีสองตัวคนละเวอร์ชันแล้วงงว่ารันตัวไหนอยู่
+DEST="/Applications/$APP_BUNDLE"
+osascript -e 'quit app "Whisper"' 2>/dev/null || true
+sleep 1
+rm -rf "$DEST"
+ditto "$APP_BUNDLE" "$DEST"          # ditto รักษาลายเซ็น cp -R ทำพัง
+echo "📲 ติดตั้งแล้ว: $DEST (v$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist))"
+echo "   เปิดด้วย: open \"$DEST\""
