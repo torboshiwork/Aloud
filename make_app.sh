@@ -64,4 +64,12 @@ sleep 1
 rm -rf "$DEST"
 ditto "$APP_BUNDLE" "$DEST"          # ditto รักษาลายเซ็น cp -R ทำพัง
 echo "📲 ติดตั้งแล้ว: $DEST (v$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Info.plist))"
-echo "   เปิดด้วย: open \"$DEST\""
+
+# The quit above is what lets us replace the bundle; without this the app just stays gone
+# after every build, which reads as "the rebuild broke it".
+AGENT="com.torboshi.aloud"
+if launchctl print "gui/$(id -u)/$AGENT" >/dev/null 2>&1; then
+    launchctl kickstart -k "gui/$(id -u)/$AGENT" && echo "🔄 เปิดแอปคืนผ่าน login item"
+else
+    open "$DEST" && echo "🔄 เปิดแอปคืนแล้ว"
+fi
