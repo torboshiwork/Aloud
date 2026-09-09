@@ -22,9 +22,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     private var langMenu: NSMenu!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if ProcessInfo.processInfo.environment["WHISPER_SELFCHECK"] != nil {
-            AudioRecorder.selfCheck(); exit(0)
-        }
         AVCaptureDevice.requestAccess(for: .audio) { _ in }
         KeyStore.prewarm()
         setupStatusItem()
@@ -57,6 +54,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
         // Request Accessibility permission once (required for auto ⌘V paste)
         Paster.promptAccessibilityOnce()
+
+        // The app never actually asked for the mic — it relied on AVAudioEngine triggering the
+        // prompt as a side effect, which does not happen reliably for an LSUIElement app. When
+        // TCC has no grant the engine still starts and the tap still installs; the buffers are
+        // just empty, which the app reported as "No audio detected".
+        let mic = AVCaptureDevice.authorizationStatus(for: .audio)
+        DebugLog.log("🔐 microphone authorization = \(["notDetermined","restricted","denied","authorized"][Int(mic.rawValue)])")
+        if mic != .authorized {
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DebugLog.log("🔐 requestAccess → \(granted ? "granted" : "DENIED")")
+                if granted { DispatchQueue.main.async { self.controller.recorder.warmUp() } }
+            }
+        }
+
+        if ProcessInfo.processInfo.environment["WHISPER_SELFCHECK"] != nil {
+            AudioRecorder.selfCheck(); exit(0)
+        }
+        if AudioRecorder.recordTestRequested {
+            controller.recorder.runRecordTest { exit(0) }
+        } else {
+            controller.recorder.warmUp()
+        }
 
         // Sparkle auto-updater (checks SUFeedURL on launch + daily)
         updaterController = SPUStandardUpdaterController(

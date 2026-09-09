@@ -29,6 +29,9 @@ class AudioRecorder: ObservableObject {
 
     private var audioEngine: AVAudioEngine?
     private var converter: AVAudioConverter?
+    /// Hardware rate the current `converter` was built for. If the device moves off it,
+    /// both the engine and the converter are stale.
+    private var converterInputRate: Double = 0
     private var idleTimer: Timer?
     private var tempFileURL: URL?
 
@@ -43,7 +46,16 @@ class AudioRecorder: ObservableObject {
     /// Starts the mic if it isn't already running. Safe to call repeatedly.
     @discardableResult
     private func startEngine() -> Bool {
-        if audioEngine != nil { return true }
+        // A long-lived engine can be stopped underneath us: when the input device changes
+        // sample rate (headset connects, another app grabs it, a call starts) AVAudioEngine
+        // stops and the converter — built for the old rate — becomes wrong too. The old
+        // one-engine-per-recording code got this healing for free; this has to do it itself.
+        if let engine = audioEngine {
+            let hz = engine.inputNode.inputFormat(forBus: 0).sampleRate
+            if engine.isRunning && hz == converterInputRate { return true }
+            DebugLog.log("♻️ engine stale (running=\(engine.isRunning) hw=\(hz)Hz vs converter \(converterInputRate)Hz) — rebuilding")
+            stopEngine()
+        }
 
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
@@ -59,15 +71,42 @@ class AudioRecorder: ObservableObject {
             return false
         }
         self.converter = converter
+        self.converterInputRate = inputFormat.sampleRate
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            self?.processBuffer(buffer)
+            // AVAudioFile has no close(); it writes its header when ARC deallocs it. Reading
+            // the `audioFile` property here retains+autoreleases it, and this thread's pool
+            // drains at an unpredictable time — so without an explicit pool the file outlives
+            // stopRecording() and ships to the STT with a header claiming 0 bytes of audio.
+            autoreleasepool { self?.processBuffer(buffer) }
         }
 
         do {
             try engine.start()
             audioEngine = engine
-            print("🎙️ Mic warm [in: \(inputFormat.sampleRate)Hz \(inputFormat.channelCount)ch]")
+            // Device reconfigured → drop the engine so the next press rebuilds it.
+            NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+            ) { [weak self] _ in
+                guard let self = self else { return }
+                // A Bluetooth headset flips from A2DP (44.1 kHz, no mic) to HFP (16 kHz mono)
+                // the moment the mic is opened, which stops the engine and invalidates the
+                // converter built for the old rate. But this notification also fires for
+                // changes that cost us nothing, and rebuilding mid-take drops ~300 ms of
+                // audio — so only rebuild when the engine is actually broken.
+                let hz = engine.inputNode.inputFormat(forBus: 0).sampleRate
+                guard !engine.isRunning || hz != self.converterInputRate else {
+                    DebugLog.log("♻️ device reconfigured but engine still valid (\(hz)Hz) — keeping it")
+                    return
+                }
+                self.lock.lock(); let busy = self.capturing; self.lock.unlock()
+                DebugLog.log("♻️ device reconfigured (running=\(engine.isRunning) \(hz)Hz vs \(self.converterInputRate)Hz, recording=\(busy)) — rebuilding")
+                // `audioFile` and `capturing` live outside the engine, so a take in progress
+                // keeps writing to the same file across the rebuild.
+                self.stopEngine()
+                self.startEngine()
+            }
+            DebugLog.log("🎙️ engine started · hw in \(inputFormat.sampleRate)Hz \(inputFormat.channelCount)ch \(inputFormat.commonFormat.rawValue)")
             return true
         } catch {
             print("❌ Failed to start engine: \(error)")
@@ -80,12 +119,27 @@ class AudioRecorder: ObservableObject {
     private func stopEngine() {
         idleTimer?.invalidate(); idleTimer = nil
         guard audioEngine != nil else { return }
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine?.stop()
+        if let engine = audioEngine {
+            NotificationCenter.default.removeObserver(
+                self, name: .AVAudioEngineConfigurationChange, object: engine)
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
         audioEngine = nil
         converter = nil
+        converterInputRate = 0
         lock.lock(); preRoll.removeAll(); lock.unlock()
         print("🎙️ Mic released")
+    }
+
+    /// Start the mic now. Called at launch: the input device reconfigures itself the moment
+    /// it is first opened (measured ~180 ms after engine start), and if that lands mid-
+    /// recording the engine stops and the take is lost. Doing it at launch gets it over with,
+    /// and gives the very first dictation a pre-roll too.
+    func warmUp() {
+        guard warmIdleSeconds > 0 else { return }
+        startEngine()
+        scheduleIdleStop()
     }
 
     /// Release the mic after `warmIdleSeconds` of no dictation.
@@ -135,13 +189,13 @@ class AudioRecorder: ObservableObject {
         lock.unlock()
 
         isRecording = true
-        print("✅ Recording started → \(tempURL.lastPathComponent) [pre-roll \(preRollCount * 1000 / 16_000) ms]")
+        DebugLog.log("▶️ start · pre-roll \(preRollCount * 1000 / 16_000)ms · engineRunning=\(audioEngine?.isRunning ?? false) · hwNow=\(audioEngine?.inputNode.inputFormat(forBus: 0).sampleRate ?? -1)Hz")
     }
 
     func stopRecording() {
         lock.lock()
         capturing = false
-        audioFile = nil                 // closing the last reference finalises the WAV header
+        audioFile = nil                 // dropping the last reference finalises the WAV header
         preRoll.removeAll(keepingCapacity: true)
         lock.unlock()
 
@@ -149,7 +203,11 @@ class AudioRecorder: ObservableObject {
         DispatchQueue.main.async { self.level = 0 }
 
         if let url = tempFileURL {
-            print("✅ Recording stopped → \(url.path)")
+            if let w = DebugLog.wavPeak(url) {
+                DebugLog.log("⏹ stop · \(w.bytes)B · \(w.frames) frames = \(w.frames * 1000 / 16_000)ms · peak \(String(format: "%.4f", w.peak))\(w.peak < 0.001 ? "  ⚠️ SILENT" : "")")
+            } else {
+                DebugLog.log("⏹ stop · ⚠️ WAV unreadable or empty at \(url.path)")
+            }
             DispatchQueue.main.async { self.recordedFileURL = url }
         }
         tempFileURL = nil
@@ -267,5 +325,43 @@ extension AudioRecorder {
         assert(makeBuffer(from: [], format: fmt) == nil, "empty ring should yield nil, not an empty buffer")
 
         print("✅ AudioRecorder self-check passed (ring 12 000 frames = 750 ms, newest-first, round-trip clean)")
+    }
+}
+
+
+// MARK: - Record self-test
+// Drop a marker file to make the app record 3 s at launch and log what landed on disk:
+//   touch ~/.whisperapp/RECORD_TEST && open Whisper.app
+// Verifies the whole capture path (engine → converter → tap → WAV) without a hotkey press.
+extension AudioRecorder {
+    static var recordTestRequested: Bool {
+        FileManager.default.fileExists(atPath: KeyStore.dir + "/RECORD_TEST")
+    }
+
+    /// Instance method on purpose: driving a second AudioRecorder would open a second engine
+    /// on the same device and the two reconfigure each other mid-take.
+    func runRecordTest(seconds: Double = 3.0, then done: @escaping () -> Void) {
+        try? FileManager.default.removeItem(atPath: KeyStore.dir + "/RECORD_TEST")
+        let r = self
+        DebugLog.log("🧪 record test: warming up, then \(seconds)s")
+        r.warmUp()                       // real usage warms at launch; let the device settle
+        Thread.sleep(forTimeInterval: 2.0)
+        r.startRecording()
+        guard r.isRecording else { DebugLog.log("🧪 FAILED: startRecording() did not start"); done(); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            r.stopRecording()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if let url = r.recordedFileURL, let w = DebugLog.wavPeak(url) {
+                    let ms = w.frames * 1000 / 16_000
+                    let want = Int(seconds * 1000)
+                    let ok = ms > want * 3 / 4 && w.peak > 0.0005
+                    DebugLog.log("🧪 \(ok ? "PASS" : "FAILED"): wanted ~\(want)ms, got \(ms)ms, peak \(String(format: "%.4f", w.peak))")
+                    DebugLog.log("🧪 wav kept at \(url.path)")
+                } else {
+                    DebugLog.log("🧪 FAILED: no WAV produced")
+                }
+                done()
+            }
+        }
     }
 }

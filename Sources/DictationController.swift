@@ -88,12 +88,15 @@ class DictationController: ObservableObject {
             // ลบคำบรรยายเสียง/เหตุการณ์ที่ STT เติมมา เช่น (เสียงลม) (wind) [background noise]
             let text = (result.map { self.stripSoundAnnotations($0) }) ?? ""
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                // An API failure is not silence — say which one it was.
+                let why = self.useCloudSTT ? (self.cloud.lastFailure.map { "STT failed (\($0))" } ?? "No audio detected") : "No audio detected"
+                DebugLog.log("⚠️ empty result → \(why)")
                 DispatchQueue.main.async {
-                    self.status = "⚠️ No audio detected"
-                    self.stage = .error("No audio detected")
+                    self.status = "⚠️ " + why
+                    self.stage = .error(why)
                     self.processing = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                        if self?.stage == .error("No audio detected") { self?.stage = .idle }
+                        if case .error = self?.stage { self?.stage = .idle }
                     }
                 }
                 return

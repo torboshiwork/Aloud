@@ -3,6 +3,9 @@ import Foundation
 /// Transcribe audio via cloud STT — supports multiple providers (ElevenLabs Scribe / OpenAI / Groq / Custom)
 /// via STTSettings — see STTProvider.swift
 class CloudTranscriptionService {
+    /// Why the last transcribe returned nil — an API failure must not read as silence.
+    private(set) var lastFailure: String?
+
     private var provider: STTProvider { STTSettings.current }
 
     var isAvailable: Bool { STTSettings.key(for: provider) != nil }
@@ -78,13 +81,26 @@ class CloudTranscriptionService {
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         req.httpBody = body
 
-        URLSession.shared.dataTask(with: req) { data, _, error in
+        self.lastFailure = nil
+        let model = STTSettings.model(for: p)
+        DebugLog.log("☁️ POST \(endpoint.host ?? "?") model=\(model) lang=\(langCode(language, style: p.style) ?? "auto") body=\(body.count)B")
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, error in
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
             if let error = error {
-                print("❌ \(p.name) error: \(error.localizedDescription)")
+                self?.lastFailure = "network: \(error.localizedDescription)"
+                DebugLog.log("❌ \(p.name) network error: \(error.localizedDescription)")
+                completion(nil); return
+            }
+            let bodyText = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            DebugLog.log("☁️ HTTP \(code) · \(data?.count ?? 0)B · \(bodyText.prefix(300))")
+            guard code == 200 else {
+                self?.lastFailure = "HTTP \(code)"
                 completion(nil); return
             }
             guard let data = data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                self?.lastFailure = "unparseable response"
                 completion(nil); return
             }
             // Both styles return { "text": "..." }
@@ -92,7 +108,7 @@ class CloudTranscriptionService {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 completion(trimmed.isEmpty ? nil : trimmed)
             } else {
-                print("❌ \(p.name) response: \(json)")
+                self?.lastFailure = "no text field in response"
                 completion(nil)
             }
         }.resume()
