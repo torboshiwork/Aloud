@@ -35,7 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
                 guard let self = self else { return }
                 self.statusItem.button?.image = NSImage(
                     systemSymbolName: Self.iconName(for: stage),
-                    accessibilityDescription: "Whisper"
+                    accessibilityDescription: "Aloud"
                 )
                 let hk = HotkeyManager.shared.currentConfig.displayString
                 if stage == .recording {
@@ -89,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Whisper")
+        statusItem.button?.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Aloud")
 
         let menu = NSMenu()
         let hk = HotkeyManager.shared.currentConfig.displayString
@@ -144,7 +144,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
         dictionary.image = NSImage(systemSymbolName: "text.book.closed", accessibilityDescription: nil)
         menu.addItem(dictionary)
 
-        let about = NSMenuItem(title: "About Whisper", action: #selector(openAbout), keyEquivalent: "")
+        let about = NSMenuItem(title: "About Aloud", action: #selector(openAbout), keyEquivalent: "")
         about.target = self
         about.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
         menu.addItem(about)
@@ -185,7 +185,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
     }
 
     @objc private func openChangelog() {
-        if let url = URL(string: "https://gamezxz.github.io/WhisperApp/changelog") {
+        if let url = URL(string: "https://torboshiwork.github.io/Aloud/changelog") {
             NSWorkspace.shared.open(url)
         }
     }
@@ -195,7 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 460, height: 760),
                 styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            w.title = "Whisper Settings"
+            w.title = "Aloud Settings"
             w.contentView = NSHostingView(rootView: SettingsView())
             w.isReleasedWhenClosed = false
             w.delegate = self
@@ -214,7 +214,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDele
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 340, height: 420),
                 styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            w.title = "About Whisper"
+            w.title = "About Aloud"
             w.contentView = NSHostingView(rootView: AboutView())
             w.isReleasedWhenClosed = false
             w.delegate = self

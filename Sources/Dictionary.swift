@@ -2,7 +2,7 @@ import Foundation
 
 /// User-maintained find→replace dictionary for words the STT keeps mis-transcribing.
 ///
-/// Backed by a plain-text file at `~/.whisperapp/dictionary.txt`:
+/// Backed by a plain-text file at `~/.aloud/dictionary.txt`:
 ///
 ///     # one rule per line:  wrong -> right      (# = comment)
 ///     เกมส์ -> Game

@@ -221,7 +221,7 @@ enum Paster {
 }
 
 // MARK: - Self-check
-// WHISPER_SELFCHECK=1 Whisper.app/Contents/MacOS/WhisperApp
+// WHISPER_SELFCHECK=1 Aloud.app/Contents/MacOS/Aloud
 extension DictationController {
     static func selfCheckAnnotations() {
         let c = DictationController()

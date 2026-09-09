@@ -27,7 +27,7 @@ struct AboutView: View {
                 .frame(width: 110, height: 110)
                 .shadow(color: Color(red: 0.8, green: 0.44, blue: 0.3).opacity(0.35), radius: 14, y: 6)
 
-            Text("Whisper")
+            Text("Aloud")
                 .font(.title2).bold()
             Text("Version \(version)")
                 .font(.caption)
@@ -53,8 +53,8 @@ struct AboutView: View {
 
             HStack(spacing: 14) {
                 Link("cointh.com", destination: URL(string: "https://cointh.com")!)
-                Link("GitHub", destination: URL(string: "https://github.com/Gamezxz/WhisperApp")!)
-                Link("Website", destination: URL(string: "https://gamezxz.github.io/WhisperApp/")!)
+                Link("GitHub", destination: URL(string: "https://github.com/torboshiwork/Aloud")!)
+                Link("Website", destination: URL(string: "https://torboshiwork.github.io/Aloud/")!)
             }
             .font(.callout)
 

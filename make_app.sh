@@ -1,10 +1,10 @@
 #!/bin/bash
-# สร้าง WhisperApp.app bundle ที่ถูกต้อง (มี Info.plist + NSMicrophoneUsageDescription)
+# สร้าง Aloud.app bundle ที่ถูกต้อง (มี Info.plist + NSMicrophoneUsageDescription)
 set -e
 cd "$(dirname "$0")"
 
-APP_NAME="WhisperApp"          # SPM executable name (must match Package.swift target)
-APP_BUNDLE="Whisper.app"       # name shown in /Applications
+APP_NAME="Aloud"               # SPM executable name (must match Package.swift target)
+APP_BUNDLE="Aloud.app"         # name shown in /Applications
 KEYCHAIN="${HOME}/Library/Keychains/login.keychain-db"
 
 echo "🔨 Building release..."
@@ -19,8 +19,8 @@ cp ".build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp "Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 
 # App icon
-if [ -f "assets/Icon.icns" ]; then
-    cp "assets/Icon.icns" "$APP_BUNDLE/Contents/Resources/Icon.icns"
+if [ -f "assets/Aloud.icns" ]; then
+    cp "assets/Aloud.icns" "$APP_BUNDLE/Contents/Resources/Aloud.icns"
     echo "🎨 เพิ่ม app icon"
 fi
 
@@ -65,7 +65,7 @@ if [ -n "$DEV_ID" ]; then
     fi
     echo "✍️  Code signing ด้วย Developer ID: $DEV_ID"
     codesign --force --options runtime --timestamp \
-        --entitlements WhisperApp.entitlements \
+        --entitlements Aloud.entitlements \
         --sign "$DEV_ID" "$APP_BUNDLE"
 else
     echo "✍️  Code signing (ad-hoc) — แนะนำให้ติดตั้ง Developer ID cert เพื่อสิทธิ์คงที่"
@@ -76,7 +76,7 @@ echo "✅ Build เสร็จ: $APP_BUNDLE"
 
 # ติดตั้งทับตัวใน /Applications เสมอ ไม่งั้นจะมีสองตัวคนละเวอร์ชันแล้วงงว่ารันตัวไหนอยู่
 DEST="/Applications/$APP_BUNDLE"
-osascript -e 'quit app "Whisper"' 2>/dev/null || true
+osascript -e 'quit app "Aloud"' 2>/dev/null || true
 sleep 1
 rm -rf "$DEST"
 ditto "$APP_BUNDLE" "$DEST"          # ditto รักษาลายเซ็น cp -R ทำพัง

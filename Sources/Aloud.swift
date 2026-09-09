@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct WhisperApp: App {
+struct Aloud: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {

@@ -1,7 +1,7 @@
 import Foundation
 import AVFoundation
 
-/// Append-only diagnostic log at ~/.whisperapp/debug.log — the app is a menu-bar
+/// Append-only diagnostic log at ~/.aloud/debug.log — the app is a menu-bar
 /// LSUIElement, so print() goes nowhere a user can reach.
 enum DebugLog {
     private static let lock = NSLock()

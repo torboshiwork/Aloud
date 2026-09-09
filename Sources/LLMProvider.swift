@@ -67,7 +67,7 @@ enum LLMRegistry {
 
 /// Manages provider settings: selected provider + key/model/endpoint per provider
 /// - selected provider: UserDefaults
-/// - key: file ~/.whisperapp/llm_<id>.key (chmod 600) → fallback to env var in zshrc
+/// - key: file ~/.aloud/llm_<id>.key (chmod 600) → fallback to env var in zshrc
 /// - model / endpoint: UserDefaults (if user overrides) → otherwise provider default
 enum LLMSettings {
     private static let defaults = UserDefaults.standard
@@ -90,7 +90,7 @@ enum LLMSettings {
             let t = k.trimmingCharacters(in: .whitespacesAndNewlines)
             if !t.isEmpty { return t }
         }
-        // backward-compat: deepseek was previously stored at ~/.whisperapp/deepseek.key
+        // backward-compat: deepseek was previously stored at ~/.aloud/deepseek.key
         if p.id == "deepseek",
            let k = try? String(contentsOfFile: KeyStore.dir + "/deepseek.key", encoding: .utf8) {
             let t = k.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -15,7 +15,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Whisper Settings")
+                Text("Aloud Settings")
                     .font(.title3).bold()
 
                 // ── Hotkey ──

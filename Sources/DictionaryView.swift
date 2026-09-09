@@ -8,7 +8,7 @@ struct DictRule: Identifiable {
 }
 
 /// Standalone window for managing the STT correction dictionary.
-/// Reads/writes `~/.whisperapp/dictionary.txt` (same file `CorrectionDictionary` consumes).
+/// Reads/writes `~/.aloud/dictionary.txt` (same file `CorrectionDictionary` consumes).
 struct DictionaryView: View {
     @State private var dictFrom = ""
     @State private var dictTo = ""
@@ -73,7 +73,7 @@ struct DictionaryView: View {
 
                 Spacer(minLength: 0)
 
-                Text("File: ~/.whisperapp/dictionary.txt · edit it directly if you like — changes apply instantly, no restart · start a line with # for a comment")
+                Text("File: ~/.aloud/dictionary.txt · edit it directly if you like — changes apply instantly, no restart · start a line with # for a comment")
                     .font(.caption2).foregroundColor(.secondary)
             }
             .padding(20)

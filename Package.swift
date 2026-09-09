@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "WhisperApp",
+    name: "Aloud",
     platforms: [
         .macOS(.v13)
     ],
@@ -11,7 +11,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "WhisperApp",
+            name: "Aloud",
             dependencies: [
                 .product(name: "Sparkle", package: "Sparkle"),
             ],

@@ -41,7 +41,7 @@ enum ShellEnv {
 /// Manages app API keys — ElevenLabs (user-entered/file), DeepSeek (from zshrc)
 enum KeyStore {
     static var dir: String {
-        FileManager.default.homeDirectoryForCurrentUser.path + "/.whisperapp"
+        FileManager.default.homeDirectoryForCurrentUser.path + "/.aloud"
     }
     static var elevenPath: String { dir + "/elevenlabs.key" }
 

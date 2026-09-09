@@ -298,7 +298,7 @@ class AudioRecorder: ObservableObject {
 }
 
 // MARK: - Self-check
-// Runs without a microphone: `WHISPER_SELFCHECK=1 Whisper.app/Contents/MacOS/WhisperApp`
+// Runs without a microphone: `WHISPER_SELFCHECK=1 Aloud.app/Contents/MacOS/Aloud`
 // Guards the two things that would silently corrupt a recording: the ring keeping the
 // *newest* 0.75 s (not the oldest), and the pre-roll surviving the copy into the file.
 extension AudioRecorder {
@@ -336,8 +336,8 @@ extension AudioRecorder {
 
 // MARK: - Record self-test
 // Verifies the whole capture path (engine → converter → tap → WAV) without a hotkey press:
-//   open --env WHISPER_RECORD_TEST=1 Whisper.app
-// Deliberately an environment variable, not a marker file: a file in ~/.whisperapp could be
+//   open --env WHISPER_RECORD_TEST=1 Aloud.app
+// Deliberately an environment variable, not a marker file: a file in ~/.aloud could be
 // planted by anything with write access to the home directory, which would turn a diagnostic
 // into a way to make the app record audio on next launch.
 extension AudioRecorder {

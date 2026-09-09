@@ -29,7 +29,7 @@ fi
 echo "🔨 Building + notarizing DMG…"
 ./make_dmg.sh >/dev/null
 
-# 3. zip the .app for Sparkle (Whisper.app/ at archive root)
+# 3. zip the .app for Sparkle (Aloud.app/ at archive root)
 echo "📦 Zipping .app for Sparkle…"
 rm -f "$APP_NAME-$VERSION.zip"
 ditto -c -k --keepParent "$APP_BUNDLE" "$APP_NAME-$VERSION.zip"

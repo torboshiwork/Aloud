@@ -67,7 +67,7 @@ enum STTSettings {
             let t = k.trimmingCharacters(in: .whitespacesAndNewlines)
             if !t.isEmpty { return t }
         }
-        // backward-compat: ElevenLabs was previously stored at ~/.whisperapp/elevenlabs.key
+        // backward-compat: ElevenLabs was previously stored at ~/.aloud/elevenlabs.key
         if p.id == "elevenlabs", let k = KeyStore.elevenLabsKey() { return k }
         return ShellEnv.value(p.envKey)
     }

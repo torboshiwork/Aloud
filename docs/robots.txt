@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://gamezxz.github.io/WhisperApp/sitemap.xml
+Sitemap: https://torboshiwork.github.io/Aloud/sitemap.xml

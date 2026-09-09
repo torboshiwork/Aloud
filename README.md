@@ -1,12 +1,12 @@
-# Whisper
+# Aloud
 
 A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corrected text is pasted into whatever you're typing. Think Wispr Flow, powered by Groq with a single free API key.
 
-**Website:** https://gamezxz.github.io/WhisperApp/
+**Website:** https://torboshiwork.github.io/Aloud/
 
-![Whisper](assets/logo.png)
+![Aloud](assets/logo.png)
 
-> The app is named **Whisper** (v1.2+); the repo/bundle keeps the historical name `WhisperApp`.
+> The app is named **Aloud** (v1.2+); the repo/bundle keeps the historical name `Aloud`.
 
 ## Features
 
@@ -15,7 +15,7 @@ A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corre
 - ✨ **AI text correction** — fixes garbled words and adds punctuation before pasting
 - 📋 **Auto-paste** into the focused app (simulates ⌘V)
 - 🌊 Live waveform + status overlay (recording → transcribing → fixing → done)
-- 🔒 Key stored locally (`~/.whisperapp/` or `GROQ_API_KEY` in your shell), never bundled or shipped
+- 🔒 Key stored locally (`~/.aloud/` or `GROQ_API_KEY` in your shell), never bundled or shipped
 - ✅ Signed & **notarized** DMG
 
 ## Requirements
@@ -26,23 +26,23 @@ A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corre
 
 ## Install
 
-1. Download `Whisper-x.x.dmg` from [Releases](../../releases) (or the [website](https://gamezxz.github.io/WhisperApp/))
-2. Drag **Whisper** to **Applications**
+1. Download `Aloud-x.x.dmg` from [Releases](../../releases) (or the [website](https://torboshiwork.github.io/Aloud/))
+2. Drag **Aloud** to **Applications**
 3. Open it — a mic icon appears in the menu bar
 4. **System Settings → Privacy & Security:** enable **Microphone** and **Accessibility**
 5. Click the mic icon → **Settings…** → paste your Groq API key
 6. Hold **Fn** and speak
 
-To start it at login, drop a LaunchAgent in `~/Library/LaunchAgents/com.game.whisperapp.plist`
-pointing `ProgramArguments` at `/Applications/Whisper.app/Contents/MacOS/WhisperApp`
+To start it at login, drop a LaunchAgent in `~/Library/LaunchAgents/com.torboshi.aloud.plist`
+pointing `ProgramArguments` at `/Applications/Aloud.app/Contents/MacOS/Aloud`
 with `RunAtLoad` set, then `launchctl bootstrap gui/$(id -u) <that plist>`.
 
 Building from source: `./make_app.sh` builds, signs, and installs straight over
-`/Applications/Whisper.app`, so there is never a second copy at a different version.
+`/Applications/Aloud.app`, so there is never a second copy at a different version.
 
 ## Configure the key
 
-The key is read from (in order): the Settings UI (saved to `~/.whisperapp/`) → shell env (`~/.zshrc`).
+The key is read from (in order): the Settings UI (saved to `~/.aloud/`) → shell env (`~/.zshrc`).
 
 ```sh
 # optional: put the key in ~/.zshrc instead of the Settings UI
@@ -52,13 +52,13 @@ export GROQ_API_KEY="gsk_..."
 ## Build from source
 
 ```bash
-git clone https://github.com/Gamezxz/WhisperApp
-cd WhisperApp
+git clone https://github.com/torboshiwork/Aloud
+cd Aloud
 ./run.sh             # dev loop: build + launch the app
 ./make_dmg.sh        # build → sign → notarize → staple → .dmg
 ```
 
-Notarization in `make_dmg.sh` expects a keychain profile named `whisperapp-notary`
+Notarization in `make_dmg.sh` expects a keychain profile named `aloud-notary`
 (`xcrun notarytool store-credentials`). For a stable signature (so macOS remembers
 permissions across rebuilds), sign with your own **Developer ID Application**
 certificate — the build scripts auto-detect it.

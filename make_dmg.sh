@@ -4,7 +4,7 @@
 set -e
 cd "$(dirname "$0")"
 
-APP_NAME="Whisper"
+APP_NAME="Aloud"
 APP_BUNDLE="$APP_NAME.app"
 KEYCHAIN="${HOME}/Library/Keychains/login.keychain-db"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Info.plist 2>/dev/null || echo "1.0")
@@ -19,7 +19,7 @@ DEV_ID=$(security find-identity -v -p codesigning "$KEYCHAIN" 2>/dev/null | grep
 # Notarize + staple the .app itself (ไม่ใช่แค่ DMG)
 # จำเป็นเพราะ: Sparkle แจก .zip ของ .app, และถ้า user แตก .app ออกจาก DMG,
 # Gatekeeper บนเครื่องอื่นเช็ค .app โดยตรง — ถ้าไม่มี notarization ticket → บล็อก
-NOTARY_PROFILE="whisperapp-notary"
+NOTARY_PROFILE="aloud-notary"
 if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
     echo "❌ ไม่มี credentials profile '$NOTARY_PROFILE' — สร้างก่อน:"
     echo "   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <apple-id> --team-id DYJAX3728R"
@@ -88,7 +88,7 @@ if [ -n "$DEV_ID" ]; then
 fi
 
 # Notarize + staple DMG (ทำให้เครื่องอื่นเปิดได้โดยไม่มีคำเตือนความปลอดภัย)
-NOTARY_PROFILE="whisperapp-notary"
+NOTARY_PROFILE="aloud-notary"
 if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
     echo "❌ ไม่มี credentials profile '$NOTARY_PROFILE' — สร้างก่อน:"
     echo "   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <apple-id> --team-id DYJAX3728R"
