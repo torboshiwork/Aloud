@@ -38,6 +38,11 @@ class AudioRecorder: ObservableObject {
     private var converterInputRate: Double = 0
     private var idleTimer: Timer?
     private var tempFileURL: URL?
+    /// Block-based observers are registered under the token this returns, not under `self` —
+    /// `removeObserver(self, ...)` never matched one, so every engine ever built kept a live
+    /// observer. One of those fired 4 hours after the mic was released and reopened it.
+    private var configObserver: NSObjectProtocol?
+    private var lastRebuild: TimeInterval = 0
 
     // Written from the audio thread — guarded by `lock`.
     private let lock = NSLock()
@@ -90,10 +95,10 @@ class AudioRecorder: ObservableObject {
             try engine.start()
             audioEngine = engine
             // Device reconfigured → drop the engine so the next press rebuilds it.
-            NotificationCenter.default.addObserver(
+            configObserver = NotificationCenter.default.addObserver(
                 forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
             ) { [weak self] _ in
-                guard let self = self else { return }
+                guard let self = self, self.audioEngine === engine else { return }
                 // A Bluetooth headset flips from A2DP (44.1 kHz, no mic) to HFP (16 kHz mono)
                 // the moment the mic is opened, which stops the engine and invalidates the
                 // converter built for the old rate. But this notification also fires for
@@ -109,6 +114,13 @@ class AudioRecorder: ObservableObject {
                 // `audioFile` and `capturing` live outside the engine, so a take in progress
                 // keeps writing to the same file across the rebuild.
                 self.stopEngine()
+                // Rebuild only to rescue a take in progress. A fresh engine posts this same
+                // notification right back, so rebuilding while idle spun 1,193 times in three
+                // hours — mic blinking on and off — after one Bluetooth headset connected.
+                // Idle needs no engine: the next keypress builds one.
+                let now = CFAbsoluteTimeGetCurrent()
+                guard busy, now - self.lastRebuild > 2 else { return }
+                self.lastRebuild = now
                 self.startEngine()
             }
             DebugLog.log("🎙️ engine started in \(Int((CFAbsoluteTimeGetCurrent() - t0) * 1000))ms · hw in \(inputFormat.sampleRate)Hz \(inputFormat.channelCount)ch \(inputFormat.commonFormat.rawValue)")
@@ -125,8 +137,8 @@ class AudioRecorder: ObservableObject {
         idleTimer?.invalidate(); idleTimer = nil
         guard audioEngine != nil else { return }
         if let engine = audioEngine {
-            NotificationCenter.default.removeObserver(
-                self, name: .AVAudioEngineConfigurationChange, object: engine)
+            if let token = configObserver { NotificationCenter.default.removeObserver(token) }
+            configObserver = nil
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
         }
