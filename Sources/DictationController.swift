@@ -20,9 +20,10 @@ class DictationController: ObservableObject {
     @Published var status = ""
     @Published var stage: Stage = .idle
     @Published var useCloudSTT = true
-    /// Off by default: it adds ~2 s on a long dictation, and the models available for it
-    /// rewrite phrasing rather than just fixing words. Toggle it in the menu bar.
-    @Published var useCorrection = false
+    /// On by default since qwen3.8-27b on Groq: ~0.25 s on a short take, ~0.5 s on a long
+    /// one, and it only touches misheard words — anything bigger is thrown away by the
+    /// guard in TextCorrectionService. Toggle it in the menu bar.
+    @Published var useCorrection = true
     @Published var language = "th"
 
     let recorder = AudioRecorder()
@@ -103,7 +104,9 @@ class DictationController: ObservableObject {
             let text = (result.map { self.stripSoundAnnotations($0) }) ?? ""
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 // An API failure is not silence — say which one it was.
-                let why = self.useCloudSTT ? (self.cloud.lastFailure.map { "STT failed (\($0))" } ?? "No audio detected") : "No audio detected"
+                let failure = self.useCloudSTT ? self.cloud.lastFailure : nil
+                let why = (failure == nil || failure == CloudTranscriptionService.noSpeech)
+                    ? "No speech detected" : "STT failed (\(failure!))"
                 DebugLog.log("⚠️ empty result → \(why)")
                 DispatchQueue.main.async {
                     self.status = "⚠️ " + why

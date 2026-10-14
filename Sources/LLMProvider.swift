@@ -35,7 +35,9 @@ enum LLMRegistry {
                     envKey: "OPENAI_API_KEY", style: .openAI),
         LLMProvider(id: "groq", name: "Groq",
                     defaultEndpoint: "https://api.groq.com/openai/v1/chat/completions",
-                    defaultModel: "openai/gpt-oss-20b",
+                    // Thai minimal-edit test: fixed the most misheard words in ~0.25 s; gpt-oss-20b
+                    // made short takes worse and gpt-oss-120b took 1–7 s.
+                    defaultModel: "qwen/qwen3.8-27b",
                     envKey: "GROQ_API_KEY", style: .openAI),
         LLMProvider(id: "openrouter", name: "OpenRouter",
                     defaultEndpoint: "https://openrouter.ai/api/v1/chat/completions",

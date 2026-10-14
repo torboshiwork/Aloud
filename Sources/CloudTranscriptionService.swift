@@ -22,6 +22,75 @@ class CloudTranscriptionService {
 
     private var provider: STTProvider { STTSettings.current }
 
+    /// `lastFailure` when the take held no speech — the caller shows this differently from
+    /// an API failure, because nothing went wrong.
+    static let noSpeech = "no speech"
+
+    /// English words from recent results, newest first. Sent back as vocabulary so the next
+    /// take spells them the same way. Words only, never sentences: a prompt sentence that
+    /// matches what is then said makes Whisper skip that stretch of audio as already
+    /// transcribed — measured, it dropped half a take. Memory only; nothing is written to disk.
+    private var recentEnglish: [String] = []
+    private let recentLock = NSLock()
+
+    /// Telling Whisper up front that the speech mixes in English is what keeps English words
+    /// in English letters. Measured on a code-switched sentence: "deadline / project /
+    /// meeting" came back as "เด็ดไลน์ / พระเจ็ด / มีทิ้ง" without it, and correct with it,
+    /// while the six pure-Thai test sentences came back identical either way.
+    private static let mixedLanguageCue = "ภาษาไทยปนคำอังกฤษ: email, website, design, LINE, Google, ไฟล์"
+
+    private func vocabularyPrompt() -> String {
+        recentLock.lock(); let recent = recentEnglish; recentLock.unlock()
+        var seen = Set<String>()
+        // Dictionary first: those are the user's own words and must survive the cut.
+        let terms = (CorrectionDictionary.shared.sttBiasTerms + recent)
+            .filter { seen.insert($0.lowercased()).inserted }
+        let line = terms.isEmpty ? Self.mixedLanguageCue
+                                 : Self.mixedLanguageCue + ", " + terms.joined(separator: ", ")
+        // Whisper's prompt caps at 224 tokens; 300 chars stays under it even for Thai.
+        return String(line.prefix(300))
+    }
+
+    private func remember(_ text: String) {
+        let words = text.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "-" })
+            .map(String.init)
+            .filter { $0.count >= 3 && $0.unicodeScalars.allSatisfy { $0.isASCII } }
+        guard !words.isEmpty else { return }
+        recentLock.lock()
+        for w in words.reversed() {
+            recentEnglish.removeAll { $0.caseInsensitiveCompare(w) == .orderedSame }
+            recentEnglish.insert(w, at: 0)
+        }
+        recentEnglish = Array(recentEnglish.prefix(30))
+        recentLock.unlock()
+    }
+
+    /// verbose_json carries per-segment confidence; keep only segments that read as speech.
+    /// Thresholds are Whisper's own: it discards a segment with no_speech_prob > 0.6 and
+    /// avg_logprob < -1, and treats compression_ratio > 2.4 as a repetition loop.
+    /// Plain `{ "text": ... }` (ElevenLabs, or a server without segments) passes through.
+    static func keptText(_ json: [String: Any]) -> String? {
+        guard let segments = json["segments"] as? [[String: Any]], !segments.isEmpty else {
+            return (json["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var dropped = 0
+        let kept = segments.filter { seg in
+            let noSpeech = seg["no_speech_prob"] as? Double ?? 0
+            let logprob = seg["avg_logprob"] as? Double ?? 0
+            let ratio = seg["compression_ratio"] as? Double ?? 0
+            let invented = (noSpeech > 0.6 && logprob < -1) || ratio > 2.4
+            if invented { dropped += 1 }
+            return !invented
+        }
+        DebugLog.log("🧩 \(segments.count) segments · dropped \(dropped)")
+        // Segments end where the speaker paused, which in Thai is where a space goes —
+        // Groq's own `text` glues them ("2 โมงตอนนี้เว็บไซต์").
+        return kept.compactMap { ($0["text"] as? String)?.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var isAvailable: Bool { STTSettings.key(for: provider) != nil }
 
     /// Convert app language → language code based on provider style.
@@ -34,10 +103,18 @@ class CloudTranscriptionService {
     }
 
     func transcribe(fileURL: URL, language: String, completion: @escaping (String?) -> Void) {
-        send(fileURL: fileURL, language: language, retriesLeft: 1, completion: completion)
+        guard let audio = SpeechAudio.prepare(fileURL) else {
+            lastFailure = Self.noSpeech
+            DebugLog.log("🔇 no speech — not uploaded")
+            completion(nil); return
+        }
+        send(audio: audio, language: language, usePrompt: true, retriesLeft: 1) { [weak self] text in
+            if let text = text { self?.remember(text) }
+            completion(text)
+        }
     }
 
-    private func send(fileURL: URL, language: String, retriesLeft: Int,
+    private func send(audio: SpeechAudio.Prepared, language: String, usePrompt: Bool, retriesLeft: Int,
                       completion: @escaping (String?) -> Void) {
         let p = provider
         guard let key = STTSettings.key(for: p) else {
@@ -48,12 +125,8 @@ class CloudTranscriptionService {
             print("❌ Invalid endpoint for \(p.name)")
             completion(nil); return
         }
-        guard let fileData = try? Data(contentsOf: fileURL) else {
-            lastFailure = "could not read the recording"
-            completion(nil); return
-        }
-        let seconds = (try? AVAudioFile(forReading: fileURL))
-            .map { Double($0.length) / $0.fileFormat.sampleRate } ?? 0
+        let fileData = audio.wav
+        let seconds = Double(fileData.count - 44) / 32_000
         guard seconds >= Self.minSeconds else {
             lastFailure = String(format: "too short (%.2fs)", seconds)
             DebugLog.log("⏭ skipped upload: \(String(format: "%.2f", seconds))s < \(Self.minSeconds)s")
@@ -95,14 +168,13 @@ class CloudTranscriptionService {
             field(langField, lang)
         }
 
-        // Bias the decoder toward the user's own vocabulary (proper nouns, brand names).
-        // Whisper's `prompt` caps at 224 tokens — 300 chars stays under that even for Thai,
-        // and a term clipped mid-word is harmless in what is only conditioning context.
         // ponytail: openAI-style only. ElevenLabs has `keyterms` (up to 1000 terms) but its
         // multipart serialization is undocumented — verify before sending, a 422 kills the call.
         if p.style == .openAI {
-            let terms = CorrectionDictionary.shared.sttBiasTerms.joined(separator: ", ")
-            if !terms.isEmpty { field("prompt", String(terms.prefix(300))) }
+            if usePrompt { field("prompt", vocabularyPrompt()) }
+            field("temperature", "0")
+            // Per-segment confidence, so invented segments can be dropped below.
+            field("response_format", "verbose_json")
         }
 
         // Audio file
@@ -115,7 +187,7 @@ class CloudTranscriptionService {
 
         self.lastFailure = nil
         let model = STTSettings.model(for: p)
-        DebugLog.log("☁️ POST \(endpoint.host ?? "?") model=\(model) lang=\(langCode(language, style: p.style) ?? "auto") body=\(body.count)B")
+        DebugLog.log("☁️ POST \(endpoint.host ?? "?") model=\(model) lang=\(langCode(language, style: p.style) ?? "auto") prompt=\(usePrompt && p.style == .openAI) body=\(body.count)B")
 
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, error in
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
@@ -124,8 +196,8 @@ class CloudTranscriptionService {
             let transient = error != nil || code == 429 || (500...599).contains(code)
             if transient, retriesLeft > 0 {
                 DebugLog.log("↻ retrying after \(error.map { "network: \($0.localizedDescription)" } ?? "HTTP \(code)")")
-                self?.send(fileURL: fileURL, language: language, retriesLeft: retriesLeft - 1,
-                           completion: completion)
+                self?.send(audio: audio, language: language, usePrompt: usePrompt,
+                           retriesLeft: retriesLeft - 1, completion: completion)
                 return
             }
             if let error = error {
@@ -150,14 +222,23 @@ class CloudTranscriptionService {
                 self?.lastFailure = "unparseable response"
                 completion(nil); return
             }
-            // Both styles return { "text": "..." }
-            if let text = json["text"] as? String {
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                completion(trimmed.isEmpty ? nil : trimmed)
-            } else {
+            guard let text = Self.keptText(json) else {
                 self?.lastFailure = "no text field in response"
-                completion(nil)
+                completion(nil); return
             }
+            // A prompt that happens to match what was said can make Whisper skip that stretch
+            // as already written. Real takes in the log run 6.7 chars per second at the 5th
+            // percentile; the measured skip came in at 3.2. Under 4, ask again without it.
+            let rate = Double(text.filter { !$0.isWhitespace }.count) / max(audio.voicedSeconds, 0.5)
+            if usePrompt, p.style == .openAI, rate < 4, let self = self {
+                DebugLog.log(String(format: "↻ %.1f chars/s looks like skipped audio — retrying without prompt", rate))
+                self.send(audio: audio, language: language, usePrompt: false, retriesLeft: 0) { plain in
+                    let best = [text, plain ?? ""].max { $0.count < $1.count } ?? text
+                    completion(best.isEmpty ? nil : best)
+                }
+                return
+            }
+            completion(text.isEmpty ? nil : text)
         }.resume()
     }
 }

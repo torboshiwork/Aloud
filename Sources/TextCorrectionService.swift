@@ -31,14 +31,15 @@ class TextCorrectionService: ObservableObject {
             langHint = "The text may be in any language — keep the original language"
         }
 
+        // Minimal-edit only. The old prompt also asked for punctuation and readability,
+        // which the model took as licence to rephrase; this one was tested on Thai and
+        // code-switched takes and changed at most 1.4% of characters, never for the worse.
         var systemPrompt = """
-        You are a text correction assistant for speech-to-text output, which often contains
-        misheard words and missing punctuation.
-        Your tasks:
-        - Fix misheard/garbled words based on context
-        - Add punctuation and spacing to improve readability
-        - Do NOT add new content, summarize, translate, or change word endings/speaker gender
-        - Return ONLY the corrected text — no explanations, no quotation marks
+        You fix speech-recognition errors in a dictation that may mix in English words.
+        Change ONLY words that are clearly misheard — a word that is not a real word, or one that makes no sense in context — into the similar-sounding word the speaker meant.
+        Keep every other character exactly as given: wording, order, spacing, numbers, particles (ครับ/ค่ะ/นะ/นึง), and English words in English letters.
+        Do not rephrase, reorder, add, remove, translate, or tidy anything. When unsure, leave it unchanged.
+        Output only the text.
         \(langHint)
         """
 
@@ -62,14 +63,19 @@ class TextCorrectionService: ObservableObject {
         switch p.style {
         case .openAI:
             req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            body = [
+            var openAIBody: [String: Any] = [
                 "model": model,
-                "temperature": 0.2,
+                "temperature": 0,
                 "messages": [
                     ["role": "system", "content": systemPrompt],
                     ["role": "user", "content": text],
                 ],
             ]
+            // Reasoning models think before answering: on Groq that is 1–7 s for a one-line
+            // fix (gpt-oss measured), so turn it off where the model allows it.
+            if model.hasPrefix("qwen/") { openAIBody["reasoning_effort"] = "none" }
+            if model.hasPrefix("openai/gpt-oss") { openAIBody["reasoning_effort"] = "low" }
+            body = openAIBody
         case .anthropic:
             req.setValue(key, forHTTPHeaderField: "x-api-key")
             req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
@@ -119,8 +125,36 @@ class TextCorrectionService: ObservableObject {
             let cleaned = raw
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            completion(cleaned.isEmpty ? nil : cleaned)
+            guard !cleaned.isEmpty else { completion(nil); return }
+            // A fix touches a word or two. Past this much change the model has rewritten the
+            // sentence, and the user's own words beat its version — keep the original.
+            let changed = Self.changeRatio(text, cleaned)
+            let kept = changed <= Self.maxChange
+            DebugLog.log(String(format: "✨ correction changed %.1f%% → %@", changed * 100,
+                                kept ? "applied" : "rejected, kept original"))
+            completion(kept ? cleaned : nil)
         }.resume()
+    }
+
+    static let maxChange = 0.15
+
+    /// Edit distance over the longer length, whitespace ignored. Counted in code points, not
+    /// Characters: Swift folds "ตั้" into one Character, so a dropped tone mark would cost
+    /// as much as a whole wrong consonant cluster.
+    static func changeRatio(_ a: String, _ b: String) -> Double {
+        let x = Array(a.unicodeScalars.filter { !$0.properties.isWhitespace })
+        let y = Array(b.unicodeScalars.filter { !$0.properties.isWhitespace })
+        if x.isEmpty || y.isEmpty { return x.count == y.count ? 0 : 1 }
+        var row = Array(0...y.count)
+        for i in 1...x.count {
+            var diag = row[0]; row[0] = i
+            for j in 1...y.count {
+                let up = row[j]
+                row[j] = min(up + 1, row[j - 1] + 1, diag + (x[i - 1] == y[j - 1] ? 0 : 1))
+                diag = up
+            }
+        }
+        return Double(row[y.count]) / Double(max(x.count, y.count))
     }
 
     /// Extract text from the response based on the provider's API style

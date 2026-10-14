@@ -11,8 +11,9 @@ A macOS menu-bar dictation app — hold **Fn**, speak, release, and the AI-corre
 ## Features
 
 - 🎙️ **Global hotkey** — default is the **Fn key alone**, hold-to-talk; toggle mode: double-tap to start, single tap to stop. Fully configurable in Settings.
-- ⚡ **One key, one provider** — a single Groq API key powers both transcription (`whisper-large-v3`) and AI correction (`llama-3.3-70b-versatile`)
-- ✨ **AI text correction** — fixes garbled words and adds punctuation before pasting
+- ⚡ **One key, one provider** — a single Groq API key powers both transcription (`whisper-large-v3`) and AI correction (`qwen/qwen3.8-27b`)
+- ✨ **AI text correction** — fixes misheard words only; a correction that changes more than 15% is discarded
+- 🔇 **No ghost text** — takes with no speech are never sent, so a mis-press pastes nothing
 - 📋 **Auto-paste** into the focused app (simulates ⌘V)
 - 🌊 Live waveform + status overlay (recording → transcribing → fixing → done)
 - 🔒 Key stored locally (`~/.aloud/` or `GROQ_API_KEY` in your shell), never bundled or shipped

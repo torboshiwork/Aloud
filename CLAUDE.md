@@ -9,8 +9,12 @@ Fork ของ [Gamezxz/WhisperApp](https://github.com/Gamezxz/WhisperApp) · re
 - **ชื่อ:** Aloud · bundle `Aloud.app` · executable `Aloud` · SPM target `Aloud` · bundle ID `com.torboshi.aloud`
 - **ข้อมูลผู้ใช้:** `~/.aloud/` — key, `dictionary.txt`, `debug.log` (ทุกไฟล์ chmod 0600 โดยแอปเอง)
 - **Hotkey default:** Fn, hold-to-talk · toggle mode = เคาะ 2 ครั้งเริ่ม เคาะ 1 ครั้งหยุด (`HotkeyManager.swift`)
-- **Provider:** Groq เจ้าเดียว — key เดียวใช้ทั้ง STT (`whisper-large-v3`) + correction (`openai/gpt-oss-20b`)
-  AI Correction **ปิดเป็นค่า default** — มันเรียบเรียงประโยคใหม่แทนที่จะแก้แค่คำผิด
+- **Provider:** Groq เจ้าเดียว — key เดียวใช้ทั้ง STT (`whisper-large-v3`) + correction (`qwen/qwen3.8-27b`)
+  AI Correction **เปิดเป็นค่า default** (v2.3.0) — prompt แบบแก้เฉพาะคำผิด + guard ทิ้งผลถ้าแก้เกิน 15%
+- **ก่อนส่ง STT** (`SpeechAudio.swift`): ไม่มีเสียงพูด ≥0.25s → ไม่ส่ง (Whisper แต่งประโยคใส่ความเงียบเสมอ),
+  ย่อช่วงเงียบเหลือ ≤0.6s, ขยายเสียงเบาสูงสุด 10×
+- **prompt ของ Whisper เป็นรายการคำเท่านั้น ห้ามเป็นประโยค** — ประโยคที่ตรงกับสิ่งที่พูดทำให้ Whisper ข้ามเสียงท่อนนั้น
+  (วัดได้: หายครึ่งเทค) มี guard ถามซ้ำแบบไม่มี prompt ถ้าได้ < 4 ตัวอักษร/วินาที
 - **ไมค์:** เปิดค้าง 60 วิหลังพูดจบแล้วปล่อย (`warmIdleSeconds` ใน `AudioRecorder.swift`)
   cold start ของ AVAudioEngine วัดได้ 372ms ถ้าปล่อยทันทีคำแรกจะหาย
 - **Logo:** `assets/Aloud.icns` สร้างจาก `assets/Codex Image Sep 10, 2026, 02_27_31 AM.png` ด้วย sips + iconutil
