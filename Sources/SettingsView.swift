@@ -43,7 +43,7 @@ struct SettingsView: View {
                             HotkeyManager.shared.updateConfig(hotkeyConfig)
                         }
 
-                    Text("Toggle mode: double-tap to start, single tap to stop (modifier keys like Fn) · Hold mode: press and hold to record")
+                    Text("Hold mode: press and hold to record — or double-tap to keep recording hands-free, tap again to stop · Toggle mode: double-tap to start, single tap to stop")
                         .font(.caption2).foregroundColor(.secondary)
                 }
                 .onChange(of: hotkeyConfig.keyCode) { _ in HotkeyManager.shared.updateConfig(hotkeyConfig) }

@@ -75,6 +75,15 @@ class HotkeyManager {
     private var lastModifierPress: TimeInterval = 0  // for double-tap toggle
     private let doubleTapInterval: TimeInterval = 0.4
 
+    // Hold mode also latches: tap, then press again within doubleTapInterval, and the take
+    // keeps recording hands-free until the next press. A press shorter than tapMax is a tap;
+    // its stop waits out the double-tap window so a second press can still cancel it.
+    private let tapMax: TimeInterval = 0.3
+    private var pressedAt: TimeInterval = 0
+    private var latched = false
+    private var ignoreRelease = false
+    private var pendingStop: DispatchWorkItem?
+
     /// Called on activation (toggle: flip recording; hold: start recording)
     var onKeyDown: (() -> Void)?
     /// Called on deactivation (hold mode: stop recording; modifier-only: key released)
@@ -166,6 +175,40 @@ class HotkeyManager {
         }
     }
 
+    private func holdPressed() {
+        pressedAt = ProcessInfo.processInfo.systemUptime
+        if latched {
+            latched = false
+            // Still recording → this press ends the latched take. Not recording (it hit the
+            // time limit meanwhile) → treat it as a fresh press.
+            if isActive?() == true {
+                ignoreRelease = true
+                DebugLog.log("🔓 latched take stopped")
+                onKeyUp?()
+                return
+            }
+        }
+        if let stop = pendingStop {
+            // Second press inside the window: keep the take the first tap started.
+            stop.cancel(); pendingStop = nil
+            latched = true; ignoreRelease = true
+            DebugLog.log("🔒 double-tap — recording until the next press")
+            return
+        }
+        onKeyDown?()
+    }
+
+    private func holdReleased() {
+        if ignoreRelease { ignoreRelease = false; return }
+        guard ProcessInfo.processInfo.systemUptime - pressedAt < tapMax else { onKeyUp?(); return }
+        let stop = DispatchWorkItem { [weak self] in
+            self?.pendingStop = nil
+            self?.onKeyUp?()
+        }
+        pendingStop = stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + doubleTapInterval, execute: stop)
+    }
+
     /// Handle modifier-only hotkeys (e.g., Fn alone)
     /// Modifier keys generate flagsChanged events, not keyDown/keyUp
     private func handleModifierEvent(_ event: NSEvent) {
@@ -178,7 +221,7 @@ class HotkeyManager {
             // Modifier key pressed
             modifierKeyDown = true
             if config.isHoldMode {
-                onKeyDown?()
+                holdPressed()
             } else if isActive?() == true {
                 // Toggle mode, currently recording: single tap stops
                 lastModifierPress = 0
@@ -197,7 +240,7 @@ class HotkeyManager {
             // Modifier key released — only matters for hold mode
             modifierKeyDown = false
             if config.isHoldMode {
-                onKeyUp?()
+                holdReleased()
             }
         }
     }

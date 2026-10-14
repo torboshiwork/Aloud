@@ -23,7 +23,11 @@ class DictationController: ObservableObject {
     /// On by default since qwen3.8-27b on Groq: ~0.25 s on a short take, ~0.5 s on a long
     /// one, and it only touches misheard words — anything bigger is thrown away by the
     /// guard in TextCorrectionService. Toggle it in the menu bar.
-    @Published var useCorrection = true
+    /// Remembered across launches — it used to reset on every reinstall, silently turning
+    /// correction back on after the user had switched it off.
+    @Published var useCorrection = UserDefaults.standard.object(forKey: "useCorrection") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(useCorrection, forKey: "useCorrection") }
+    }
     @Published var language = "th"
 
     let recorder = AudioRecorder()
@@ -41,6 +45,9 @@ class DictationController: ObservableObject {
             .store(in: &cancellables)
     }
 
+    private let maxRecordingSeconds: TimeInterval = 600
+    private var takeID = 0
+
     func toggle() { recorder.isRecording ? stop() : start() }
 
     func start() {
@@ -50,6 +57,15 @@ class DictationController: ObservableObject {
         if isRecording {
             status = "Listening…"
             stage = .recording
+            // A latched (double-tap) take has no hand on the key to end it. Groq refuses a
+            // file past ~13 min and the whole take would be lost, so stop well before that.
+            takeID += 1
+            let id = takeID
+            DispatchQueue.main.asyncAfter(deadline: .now() + maxRecordingSeconds) { [weak self] in
+                guard let self = self, self.takeID == id, self.recorder.isRecording else { return }
+                DebugLog.log("⏱ \(Int(self.maxRecordingSeconds / 60)) min limit — stopping")
+                self.stop()
+            }
         } else {
             status = "❌ Microphone unavailable"
             stage = .error("Microphone unavailable")
